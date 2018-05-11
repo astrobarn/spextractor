@@ -22,18 +22,39 @@ plt.ioff()
 LINES = dict(((1, 3945.12), (2, 4129.73), (3, 4481.2), (4, 5083.42),
               (5, 5536.24), (6, 6007.7), (7, 6355.1)))
 
+# Element, rest wavelength, low_1, high_1, low_2, high_2
+LINES_Ia = [('Ca II H&K', 3945.12, 3580, 3800, 3800, 3950),
+            ('Si 4000A', 4129.73, 3840, 3950, 4000, 4200),
+            ('Mg II 4300A', 4481.2, 4000, 4250, 4300, 4700),
+            ('Fe II 4800A', 5083.42, 4300, 4700, 4950, 5600),
+            ('Si W',5536.24, 5050, 5300, 5500, 5750),
+            ('Si II 5800A',6007.7, 5400, 5700, 5800, 6000),
+            ('Si II 6150A', 6355.1, 5800, 6100, 6200, 6600)
+            ]
+
+LINES_Ib = [('Fe II', 5169, 4950, 5050, 5150, 5250),
+            ('He I', 5875, 5350, 5450, 5850, 6000)]
+
+LINES_Ic = [('Fe II', 5169, 4950, 5050, 5150, 5250),
+            ('O I', 7773, 7250, 7350, 7750, 7950)]
+
+LINES = dict(Ia=LINES_Ia, Ib=LINES_Ib, Ic=LINES_Ic)
+
 
 def pEW(wavelength, flux, cont_coords):
     '''
     Calculates the pEW between two chosen points.(cont_coords to be
     inputed as np.array([x1,x2], [y1,y2])
     '''
-    cont = interpolate.interp1d(cont_coords[0], cont_coords[1], bounds_error=False,
+    cont = interpolate.interp1d(cont_coords[0], cont_coords[1],
+                                bounds_error=False,
                                 fill_value=1)  # define pseudo continuum with cont_coords
-    nflux = flux / cont(wavelength)  # normalize flux within the pseudo continuum
+    nflux = flux / cont(
+            wavelength)  # normalize flux within the pseudo continuum
     pEW = 0
     for i in range(len(wavelength)):
-        if wavelength[i] > cont_coords[0, 0] and wavelength[i] < cont_coords[0, 1]:
+        if wavelength[i] > cont_coords[0, 0] and wavelength[i] < cont_coords[
+            0, 1]:
             dwave = 0.5 * (wavelength[i + 1] - wavelength[i - 1])
             pEW += dwave * (1 - nflux[i])
 
@@ -66,19 +87,6 @@ def load_spectra(filename, z):
         wavel = data[:, 0]
         flux /= flux.max()
         return wavel, flux
-        '''
-        # Make sure there is data around silicon:
-        if wavel.min() > 5800 or wavel.max() < 7000:
-            return None
-
-        idx1, idx2 = np.searchsorted(wavel, [3000, 8000])
-
-        # Load only the data between 3000 and 8000 A
-        wavel = data[idx1:idx2]['col1'] / (1 + z)
-        flux = data[idx1:idx2]['col2']
-        flux /= flux.max()  # normalise intensity
-        return wavel, flux
-        '''
     except Exception as e:
         prev = e
 
@@ -102,24 +110,38 @@ def load_spectra(filename, z):
         return wavel, flux
     except Exception as e:
         print(prev.message, e.message)
+        raise e
 
 
-def compute_speed(feature_n, x_values, y_values):
-    from scipy import signal
-    for index in signal.argrelmin(y_values, order=10)[0]:
-        lambda_m = x_values[index]
-        # lambda_m = x_values[y_values.argmin()]
-        c = 299.792458
-        lambda_0 = LINES[feature_n]  # Restframe
-        l_quot = lambda_m / lambda_0
-        velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
-        if __name__ == '__main__':
-            print("f{} velocity: {:.3f}".format(feature_n, velocity))
-            plt.axvline(lambda_m, color='b')
-    return velocity
+def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
+    # This code is for multiple features
+    # for index in signal.argrelmin(y_values, order=10)[0]:
+    #    lambda_m = x_values[index]
+
+    # Just pick the strongest
+    min_pos = y_values.argmin()
+    lambda_m = x_values[min_pos]
+
+    # To estimate the error look on the right and see when it overcomes y_err
+    threshold = y_values[min_pos] + y_err_values[min_pos]
+    x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+
+    # and on the left:
+    x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+    lambda_m_err = (x_right - x_left) / 2
+
+    c = 299.792458
+    l_quot = lambda_m / lambda_0
+    velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
+    velocity_err = c * 4 * l_quot / (
+                                         l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+    if plot:
+        plt.axvline(lambda_m, color='b')
+
+    return velocity, velocity_err
 
 
-def process_spectra(filename, z, downsampling=None, plot=False):
+def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
     if downsampling is not None:
@@ -147,53 +169,23 @@ def process_spectra(filename, z, downsampling=None, plot=False):
         print('Plotting')
         mean, conf = m.predict(x)
         plt.plot(x, mean, color='red')
-        plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0], mean[:, 0] + conf[:, 0],
+        plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0],
+                         mean[:, 0] + conf[:, 0],
                          alpha=0.3, color='red')
+
+    if isinstance(type, str):
+        lines = LINES[type]
+    else:
+        lines = type
 
     pew_results = dict()
     pew_err_results = dict()
     velocity_results = dict()
+    veolcity_err_results = dict()
 
     t0_pew = time.time()
-    for n in range(1, 8):
-        if n == 1:  # Ca II H&K
-            # low_1 = 3450
-            low_1 = 3580
-            high_1 = 3800
-            low_2 = 3800
-            # high_2 = 4100
-            high_2 = 3950
-        elif n == 2:  # Si 4000A
-            # low_1 = 3900
-            low_1 = 3840
-            high_1 = 3950
-            low_2 = 4000
-            high_2 = 4200
-        elif n == 3:  # Mg II 4300A
-            low_1 = 4000
-            high_1 = 4250
-            low_2 = 4300
-            high_2 = 4700
-        elif n == 4:  # Fe II 4800A
-            low_1 = 4300
-            high_1 = 4700
-            low_2 = 4950
-            high_2 = 5600
-        elif n == 5:  # Si W
-            low_1 = 5050
-            high_1 = 5300
-            low_2 = 5500
-            high_2 = 5750
-        elif n == 6:  # Si II 5800A
-            low_1 = 5400
-            high_1 = 5700
-            low_2 = 5800
-            high_2 = 6000
-        elif n == 7:  # Si II 6150A
-            low_1 = 5800
-            high_1 = 6100
-            low_2 = 6200
-            high_2 = 6600
+    for line_data in lines:
+        element, rest_wavelength, low_1, high_1, low_2, high_2 = line_data
 
         # For n:th feature:
         cp_1 = np.searchsorted(x[:, 0], (low_1, high_1))
@@ -211,6 +203,8 @@ def process_spectra(filename, z, downsampling=None, plot=False):
         # PeW calculation ---------------------
         pew_computed, pew_err = pEW(wavel, flux,
                                     np.array([[cp1_x, cp2_x], [cp1_y, cp2_y]]))
+        pew_results[element] = pew_computed
+        pew_err_results[element] = pew_err
 
         # Plotting the pew regions ------------
         if plot:
@@ -219,19 +213,18 @@ def process_spectra(filename, z, downsampling=None, plot=False):
             _m_pew = (cp2_y - cp1_y) / (cp2_x - cp1_x)
             _y_pew_hi = _m_pew * _x_pew + cp1_y - _m_pew * cp1_x
             _y_pew_low = m.predict(_x_pew[:, None])[0][:, 0]
-            plt.fill_between(_x_pew, _y_pew_low, _y_pew_hi, color='y', alpha=0.3)
+            plt.fill_between(_x_pew, _y_pew_low, _y_pew_hi, color='y',
+                             alpha=0.3)
 
-        # Velocity calculation ----------------
-        if n in LINES:
-            # compute_speed_fit(n, wavel, flux)
-            vel = compute_speed(n, x[max_point:max_point_2, 0],
-                                mean[max_point:max_point_2, 0])
-            velocity_results[n] = vel
-        # print 'pEW {:.2f} +- {:.2f}'.format(pew_computed, pew_err)
-
-        pew_results[n] = pew_computed
-        pew_err_results[n] = pew_err
+        # compute_speed_fit(n, wavel, flux)
+        vel, vel_errors = compute_speed(rest_wavelength,
+                                        x[max_point:max_point_2, 0],
+                                        mean[max_point:max_point_2, 0],
+                                        np.sqrt(conf[max_point:max_point_2, 0]),
+                                        plot)
+        velocity_results[element] = vel
+        veolcity_err_results[element] = vel_errors
 
     print('pEWs computed in {:.2f} s.'.format(time.time() - t0_pew))
     print(time.time() - t00, 's')
-    return pew_results, pew_err_results, velocity_results
+    return pew_results, pew_err_results, velocity_results, veolcity_err_results
