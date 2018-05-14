@@ -18,7 +18,7 @@ pew, pew_err, vel, vel_err = spextractor.process_spectra(filename_Ia, z, downsam
 # velocities are given in 10**3 km/s and pEW in Å
 print(pew, pew_err, vel, vel_err)
 
-plt.savefig('Ia_example.png')
+#plt.savefig('Ia_example.png')
 
 # Test case with a type Ib
 filename_Ib = 'tns_2018_aqf/tns_2018aqf_2018-04-10.0_P200_DBSP_ZTF.txt'
@@ -26,6 +26,14 @@ z = 0.033
 pew, pew_err, vel, vel_err = spextractor.process_spectra(filename_Ib, z, downsampling=3, plot=True, type='Ib')
 # velocities are given in 10**3 km/s and pEW in Å
 print(pew, pew_err, vel, vel_err)
-plt.savefig('Ib_example.png')
+#plt.savefig('Ib_example.png')
+
+
+filename_Ic = 'sn2017ixh/2017ixh.txt'
+z = 0.011
+pew, pew_err, vel, vel_err = spextractor.process_spectra(filename_Ic, z, plot=True, type='Ic')
+# velocities are given in 10**3 km/s and pEW in Å
+print(pew, pew_err, vel, vel_err)
+#plt.savefig('Ic_example.png')
 plt.show()
 

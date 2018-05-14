@@ -19,9 +19,6 @@ import GPy
 
 plt.ioff()
 
-LINES = dict(((1, 3945.12), (2, 4129.73), (3, 4481.2), (4, 5083.42),
-              (5, 5536.24), (6, 6007.7), (7, 6355.1)))
-
 # Element, rest wavelength, low_1, high_1, low_2, high_2
 LINES_Ia = [('Ca II H&K', 3945.12, 3580, 3800, 3800, 3950),
             ('Si 4000A', 4129.73, 3840, 3950, 4000, 4200),
@@ -121,6 +118,7 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
     # Just pick the strongest
     min_pos = y_values.argmin()
     lambda_m = x_values[min_pos]
+    print(min_pos, x_values.shape)
 
     # To estimate the error look on the right and see when it overcomes y_err
     threshold = y_values[min_pos] + y_err_values[min_pos]
@@ -157,7 +155,8 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
     plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
     plt.plot(wavel, flux, color='k', alpha=0.5)
 
-    kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.1)
+    kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
+    #kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
     m = GPy.models.GPRegression(x, y, kernel)
     print('Created GP')
     t0 = time.time()
@@ -172,7 +171,6 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
         plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0],
                          mean[:, 0] + conf[:, 0],
                          alpha=0.3, color='red')
-
     if isinstance(type, str):
         lines = LINES[type]
     else:
