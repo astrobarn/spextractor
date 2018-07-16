@@ -171,11 +171,12 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
     x = wavel[:, np.newaxis]
     y = flux[:, np.newaxis]
 
-    plt.figure()
-    plt.title(filename)
-    plt.xlabel(r"$\mathrm{Rest\ wavelength}\ (\AA)$", size=14)
-    plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
-    plt.plot(wavel, flux, color='k', alpha=0.5)
+    if plot:
+        plt.figure()
+        plt.title(filename)
+        plt.xlabel(r"$\mathrm{Rest\ wavelength}\ (\AA)$", size=14)
+        plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
+        plt.plot(wavel, flux, color='k', alpha=0.5)
 
     kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
     # kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
