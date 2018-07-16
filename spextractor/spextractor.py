@@ -24,8 +24,8 @@ LINES_Ia = [('Ca II H&K', 3945.12, 3580, 3800, 3800, 3950),
             ('Si 4000A', 4129.73, 3840, 3950, 4000, 4200),
             ('Mg II 4300A', 4481.2, 4000, 4250, 4300, 4700),
             ('Fe II 4800A', 5083.42, 4300, 4700, 4950, 5600),
-            ('Si W',5536.24, 5050, 5300, 5500, 5750),
-            ('Si II 5800A',6007.7, 5400, 5700, 5800, 6000),
+            ('Si W', 5536.24, 5050, 5300, 5500, 5750),
+            ('Si II 5800A', 6007.7, 5400, 5700, 5800, 6000),
             ('Si II 6150A', 6355.1, 5800, 6100, 6200, 6600)
             ]
 
@@ -106,33 +106,55 @@ def load_spectra(filename, z):
         flux /= flux.max()
         return wavel, flux
     except Exception as e:
-        print(prev.message, e.message)
+        print(prev.message, e.message, filename)
         raise e
 
 
-def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
+def compute_speed(lambda_0, x_values, y_values, y_err_values,
+                  y_values_cut, cut_point, plot):
     # This code is for multiple features
     # for index in signal.argrelmin(y_values, order=10)[0]:
     #    lambda_m = x_values[index]
 
     # Just pick the strongest
-    min_pos = y_values.argmin()
+    min_pos = y_values_cut.argmin() + cut_point
     lambda_m = x_values[min_pos]
-    print(min_pos, x_values.shape)
 
+    print(min_pos, x_values.shape, y_values.shape, y_values_cut.shape)
     # To estimate the error look on the right and see when it overcomes y_err
     threshold = y_values[min_pos] + y_err_values[min_pos]
-    x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+
+    try:
+        x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+    except:
+        print(x_values[min_pos])
+        if plot:
+            plt.axvline(lambda_m, color='g')
+            plt.axvline(x_values[min_pos], color='purple')
+            plt.axhline(threshold, color='r')
+            plt.axhline(y_values[min_pos], color='k')
+            plt.scatter(x_values[min_pos], y_values[min_pos])
+            plt.show()
 
     # and on the left:
-    x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+    try:
+        x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+    except:
+        print(x_values[min_pos])
+        if plot:
+            plt.axvline(lambda_m, color='g')
+            plt.axvline(x_values[min_pos], color='purple')
+            plt.axhline(threshold, color='r')
+            plt.axhline(y_values[min_pos], color='k')
+            plt.scatter(x_values[min_pos], y_values[min_pos])
+            plt.show()
     lambda_m_err = (x_right - x_left) / 2
 
     c = 299.792458
     l_quot = lambda_m / lambda_0
     velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
     velocity_err = c * 4 * l_quot / (
-                                         l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+                                        l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
     if plot:
         plt.axvline(lambda_m, color='b')
 
@@ -156,7 +178,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
     plt.plot(wavel, flux, color='k', alpha=0.5)
 
     kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
-    #kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
+    # kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
     m = GPy.models.GPRegression(x, y, kernel)
     print('Created GP')
     t0 = time.time()
@@ -164,13 +186,15 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
     print('Optimised in', time.time() - t0, 's.')
     print(m)
 
+    mean, variance = m.predict(x)
+    conf = np.sqrt(variance)
     if plot:
         print('Plotting')
-        mean, conf = m.predict(x)
         plt.plot(x, mean, color='red')
         plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0],
                          mean[:, 0] + conf[:, 0],
                          alpha=0.3, color='red')
+
     if isinstance(type, str):
         lines = LINES[type]
     else:
@@ -215,10 +239,10 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
                              alpha=0.3)
 
         # compute_speed_fit(n, wavel, flux)
-        vel, vel_errors = compute_speed(rest_wavelength,
-                                        x[max_point:max_point_2, 0],
+        vel, vel_errors = compute_speed(rest_wavelength, x[:, 0], mean[:, 0],
+                                        conf[:, 0],
                                         mean[max_point:max_point_2, 0],
-                                        np.sqrt(conf[max_point:max_point_2, 0]),
+                                        max_point,
                                         plot)
         velocity_results[element] = vel
         veolcity_err_results[element] = vel_errors
