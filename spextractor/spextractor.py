@@ -117,31 +117,77 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
 
     # Just pick the strongest
     min_pos = y_values.argmin()
+    if min_pos == 0 or min_pos == y_values.shape[0]:
+        # Feature not found
+        return np.nan, np.nan
+
     lambda_m = x_values[min_pos]
-    print(min_pos, x_values.shape)
 
-    # To estimate the error look on the right and see when it overcomes y_err
-    threshold = y_values[min_pos] + y_err_values[min_pos]
-    x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+    try:
+        # To estimate the error look on the right and see when it overcomes y_err
+        threshold = y_values[min_pos] + y_err_values[min_pos]
+        x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+    except IndexError:
+        # Threshold not found, error unreliable:
+        x_right = np.nan
 
-    # and on the left:
-    x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+    try:
+        # and on the left:
+        x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+    except IndexError:
+        # Threshold not found, error unreliable:
+        x_left = np.nan
+
     lambda_m_err = (x_right - x_left) / 2
 
     c = 299.792458
     l_quot = lambda_m / lambda_0
     velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
-    velocity_err = c * 4 * l_quot / (
-                                         l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+    velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
     if plot:
         plt.axvline(lambda_m, color='b')
 
     return velocity, velocity_err
 
 
-def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
+def _filter_outliers(wavel, flux, sigma_outliers):
+    """
+    Attempt to remove sharp lines (teluric, cosmic rays...).
+
+    First applies a heavy downsampling and then discards points that are
+    further than sigma_outliers standard deviations
+    """
+
+    downsampling = 20
+    x = wavel[::downsampling, np.newaxis]
+    y = flux[::downsampling, np.newaxis]
+    kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
+    m = GPy.models.GPRegression(x, y, kernel)
+    m.optimize()
+
+    pred, var_ = m.predict(wavel[:, np.newaxis])
+    sigma = np.sqrt(var_.squeeze())
+    valid = np.abs(flux - pred.squeeze()) < sigma_outliers * sigma
+
+    wavel = wavel[valid]
+    flux = flux[valid]
+
+    print('Auto-removed {} data points'.format(len(valid) - valid.sum()))
+
+    return wavel, flux
+
+
+def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
+                    sigma_outliers=None):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
+
+    if sigma_outliers is not None:
+        # Remove spikes
+        wavel, flux = _filter_outliers(wavel, flux, sigma_outliers)
+        # And re-normalise
+        flux /= flux.max()
+
     if downsampling is not None:
         wavel = wavel[::downsampling]
         flux = flux[::downsampling]
@@ -199,6 +245,22 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
         cp1_x, cp1_y = x[max_point, 0], mean[max_point, 0]
         cp2_x, cp2_y = x[max_point_2, 0], mean[max_point_2, 0]
 
+
+        # Speed calculation -------------------
+        vel, vel_errors = compute_speed(rest_wavelength,
+                                        x[max_point:max_point_2, 0],
+                                        mean[max_point:max_point_2, 0],
+                                        np.sqrt(conf[max_point:max_point_2, 0]),
+                                        plot)
+        velocity_results[element] = vel
+        veolcity_err_results[element] = vel_errors
+
+        if np.isnan(vel):
+            # The feature was not detected, set the PeW to NaN.
+            pew_results[element] = np.nan
+            pew_err_results[element] = np.nan
+            continue
+
         # PeW calculation ---------------------
         pew_computed, pew_err = pEW(wavel, flux,
                                     np.array([[cp1_x, cp2_x], [cp1_y, cp2_y]]))
@@ -215,15 +277,6 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia'):
             plt.fill_between(_x_pew, _y_pew_low, _y_pew_hi, color='y',
                              alpha=0.3)
 
-        # compute_speed_fit(n, wavel, flux)
-        vel, vel_errors = compute_speed(rest_wavelength,
-                                        x[max_point:max_point_2, 0],
-                                        mean[max_point:max_point_2, 0],
-                                        np.sqrt(conf[max_point:max_point_2, 0]),
-                                        plot)
-        velocity_results[element] = vel
-        veolcity_err_results[element] = vel_errors
-
     print('pEWs computed in {:.2f} s.'.format(time.time() - t0_pew))
     print(time.time() - t00, 's')
-    return pew_results, pew_err_results, velocity_results, veolcity_err_results
+    return pew_results, pew_err_results, velocity_results, veolcity_err_results, m
