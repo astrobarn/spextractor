@@ -24,8 +24,8 @@ LINES_Ia = [('Ca II H&K', 3945.12, 3580, 3800, 3800, 3950),
             ('Si 4000A', 4129.73, 3840, 3950, 4000, 4200),
             ('Mg II 4300A', 4481.2, 4000, 4250, 4300, 4700),
             ('Fe II 4800A', 5083.42, 4300, 4700, 4950, 5600),
-            ('Si W',5536.24, 5050, 5300, 5500, 5750),
-            ('Si II 5800A',6007.7, 5400, 5700, 5800, 6000),
+            ('Si W', 5536.24, 5050, 5300, 5500, 5750),
+            ('Si II 5800A', 6007.7, 5400, 5700, 5800, 6000),
             ('Si II 6150A', 6355.1, 5800, 6100, 6200, 6600)
             ]
 
@@ -47,7 +47,7 @@ def pEW(wavelength, flux, cont_coords):
                                 bounds_error=False,
                                 fill_value=1)  # define pseudo continuum with cont_coords
     nflux = flux / cont(
-            wavelength)  # normalize flux within the pseudo continuum
+        wavelength)  # normalize flux within the pseudo continuum
     pEW = 0
     for i in range(len(wavelength)):
         if wavelength[i] > cont_coords[0, 0] and wavelength[i] < cont_coords[
@@ -106,7 +106,7 @@ def load_spectra(filename, z):
         flux /= flux.max()
         return wavel, flux
     except Exception as e:
-        print(prev.message, e.message)
+        print(prev.message, e.message, filename)
         raise e
 
 
@@ -203,7 +203,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         plt.plot(wavel, flux, color='k', alpha=0.5)
 
     kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
-    #kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
+    # kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
     m = GPy.models.GPRegression(x, y, kernel)
     print('Created GP')
     t0 = time.time()
@@ -211,13 +211,15 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     print('Optimised in', time.time() - t0, 's.')
     print(m)
 
+    mean, variance = m.predict(x)
+    conf = np.sqrt(variance)
     if plot:
         print('Plotting')
-        mean, conf = m.predict(x)
         plt.plot(x, mean, color='red')
         plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0],
                          mean[:, 0] + conf[:, 0],
                          alpha=0.3, color='red')
+
     if isinstance(type, str):
         lines = LINES[type]
     else:
@@ -244,7 +246,6 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         # Get the coordinates of the points:
         cp1_x, cp1_y = x[max_point, 0], mean[max_point, 0]
         cp2_x, cp2_y = x[max_point_2, 0], mean[max_point_2, 0]
-
 
         # Speed calculation -------------------
         vel, vel_errors = compute_speed(rest_wavelength,
