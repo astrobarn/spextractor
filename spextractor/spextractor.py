@@ -111,10 +111,6 @@ def load_spectra(filename, z):
 
 
 def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
-    # This code is for multiple features
-    # for index in signal.argrelmin(y_values, order=10)[0]:
-    #    lambda_m = x_values[index]
-
     # Just pick the strongest
     min_pos = y_values.argmin()
     if min_pos == 0 or min_pos == y_values.shape[0]:
@@ -150,6 +146,60 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
     return velocity, velocity_err
 
 
+def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot):
+    min_pos = y_values.argmin()
+    if min_pos == 0 or min_pos == y_values.shape[0]:
+        # Feature not found
+        return [], [], np.nan, np.nan
+
+    # Find all relative minima
+    minima = signal.argrelmin(y_values, order=10)[0].tolist()
+    # Append the global minimum (it could be near the edges)
+    abs_min = y_values.argmin()
+    minima.append(abs_min)
+    # Remove redundancies and sort.
+    minima = sorted(set(minima))
+
+    velocity = np.nan
+    velocity_err = np.nan
+    lambdas = []
+    lambdas_err = []
+    for min_pos in minima:
+        lambda_m = x_values[min_pos]
+        try:
+            # To estimate the error look on the right and see when it overcomes y_err
+            threshold = y_values[min_pos] + y_err_values[min_pos]
+            x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
+        except IndexError:
+            # Threshold not found, error unreliable:
+            x_right = np.nan
+
+        try:
+            # and on the left:
+            x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
+        except IndexError:
+            # Threshold not found, error unreliable:
+            x_left = np.nan
+
+        lambda_m_err = (x_right - x_left) / 2
+
+        lambdas.append(lambda_m)
+        lambdas_err.append(lambda_m_err)
+
+        if min_pos == abs_min:
+            # This is the absolute minimum, save it.
+            c = 299.792458
+            l_quot = lambda_m / lambda_0
+            velocity =  -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
+            velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+
+        if plot:
+            plt.vlines(lambda_m, y_values[min_pos] - 0.2,
+                       y_values[min_pos] + 0.2, color='b')
+
+    return lambdas, lambdas_err, velocity, velocity_err
+
+
 def _filter_outliers(wavel, flux, sigma_outliers):
     """
     Attempt to remove sharp lines (teluric, cosmic rays...).
@@ -178,7 +228,7 @@ def _filter_outliers(wavel, flux, sigma_outliers):
 
 
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
-                    sigma_outliers=None):
+                    sigma_outliers=None, high_velocity=False):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
 
@@ -230,6 +280,9 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     velocity_results = dict()
     veolcity_err_results = dict()
 
+    lambda_hv_results = dict()
+    lambda_hv_err_results = dict()
+
     t0_pew = time.time()
     for line_data in lines:
         element, rest_wavelength, low_1, high_1, low_2, high_2 = line_data
@@ -248,11 +301,20 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         cp2_x, cp2_y = x[max_point_2, 0], mean[max_point_2, 0]
 
         # Speed calculation -------------------
-        vel, vel_errors = compute_speed(rest_wavelength,
-                                        x[max_point:max_point_2, 0],
-                                        mean[max_point:max_point_2, 0],
-                                        np.sqrt(conf[max_point:max_point_2, 0]),
-                                        plot)
+        if high_velocity:
+            lambda_hv, lambda_hv_err, vel, vel_errors = compute_speed_high_velocity(rest_wavelength,
+                                                                         x[max_point:max_point_2, 0],
+                                                                         mean[max_point:max_point_2, 0],
+                                                                         np.sqrt(conf[max_point:max_point_2, 0]),
+                                                                         plot)
+            lambda_hv_results[element] = lambda_hv
+            lambda_hv_err_results[element] = lambda_hv_err
+        else:
+            vel, vel_errors = compute_speed(rest_wavelength,
+                                            x[max_point:max_point_2, 0],
+                                            mean[max_point:max_point_2, 0],
+                                            np.sqrt(conf[max_point:max_point_2, 0]),
+                                            plot)
         velocity_results[element] = vel
         veolcity_err_results[element] = vel_errors
 
@@ -280,4 +342,8 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
     print('pEWs computed in {:.2f} s.'.format(time.time() - t0_pew))
     print(time.time() - t00, 's')
-    return pew_results, pew_err_results, velocity_results, veolcity_err_results, m
+    if high_velocity:
+        outputs = pew_results, pew_err_results, velocity_results, veolcity_err_results, lambda_hv_results, lambda_hv_err_results, m
+    else:
+        outputs = pew_results, pew_err_results, velocity_results, veolcity_err_results, m
+    return outputs
