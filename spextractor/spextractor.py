@@ -255,6 +255,8 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
     # kernel = GPy.kern.RBF(input_dim=1, lengthscale=300, variance=0.01)
     m = GPy.models.GPRegression(x, y, kernel)
+    m['Gaussian.noise.variance'][0] = 0.0027
+
     print('Created GP')
     t0 = time.time()
     m.optimize()
