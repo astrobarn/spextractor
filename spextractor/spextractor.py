@@ -368,7 +368,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     print('pEWs computed in {:.2f} s.'.format(time.time() - t0_pew))
     print(time.time() - t00, 's')
     if high_velocity:
-        outputs = pew_results, pew_err_results, velocity_results, veolcity_err_results, lambda_hv_results, lambda_hv_err_results, m
+        outputs = pew_results, pew_err_results, velocity_results, veolcity_err_results, lambda_hv_results, lambda_hv_err_results, vel_hv_results, vel_hv_err_results, m
     else:
         outputs = pew_results, pew_err_results, velocity_results, veolcity_err_results, m
     return outputs

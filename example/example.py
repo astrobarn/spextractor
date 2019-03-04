@@ -36,7 +36,7 @@ plt.savefig('Ia_example.png', dpi=300)
 
 out = spextractor.process_spectra(filename_Ia, z, downsampling=3, plot=True, type='Ia', sigma_outliers=3,
                                   high_velocity=True)
-pew, pew_err, vel, vel_err, lambda_hv_results, lambda_hv_err_results, gp_model = out
+pew, pew_err, vel, vel_err, lambda_hv_results, lambda_hv_err_results, vel_hv, vel_hv_err, gp_model = out
 
 for line in ('Ca II H&K', 'Si II 6150A'):
     print(line)
