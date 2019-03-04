@@ -50,8 +50,7 @@ def pEW(wavelength, flux, cont_coords):
         wavelength)  # normalize flux within the pseudo continuum
     pEW = 0
     for i in range(len(wavelength)):
-        if wavelength[i] > cont_coords[0, 0] and wavelength[i] < cont_coords[
-            0, 1]:
+        if wavelength[i] > cont_coords[0, 0] and wavelength[i] < cont_coords[0, 1]:
             dwave = 0.5 * (wavelength[i + 1] - wavelength[i - 1])
             pEW += dwave * (1 - nflux[i])
 
@@ -64,11 +63,11 @@ def pEW(wavelength, flux, cont_coords):
 
 def gaussian(x, AB, mean, sigma, baseline):
     '''
-   x = in this case normalised time
-   AB = Amplitude of the secondary bump
-   x0 = The normalised time of the secondary bump max
-   sigma = width of the gaussian
-   '''
+    x = in this case normalised time
+    AB = Amplitude of the secondary bump
+    x0 = The normalised time of the secondary bump max
+    sigma = width of the gaussian
+    '''
     return baseline + AB * np.exp(-(x - mean) ** 2 / (2 * sigma ** 2))
 
 
@@ -190,7 +189,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
             # This is the absolute minimum, save it.
             c = 299.792458
             l_quot = lambda_m / lambda_0
-            velocity =  -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
+            velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
             velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
 
         if plot:
@@ -304,18 +303,16 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
         # Speed calculation -------------------
         if high_velocity:
-            lambda_hv, lambda_hv_err, vel, vel_errors = compute_speed_high_velocity(rest_wavelength,
-                                                                         x[max_point:max_point_2, 0],
-                                                                         mean[max_point:max_point_2, 0],
-                                                                         np.sqrt(conf[max_point:max_point_2, 0]),
-                                                                         plot)
+            line_out = compute_speed_high_velocity(rest_wavelength, x[max_point:max_point_2, 0],
+                                                   mean[max_point:max_point_2, 0],
+                                                   np.sqrt(conf[max_point:max_point_2, 0]), plot)
+
+            lambda_hv, lambda_hv_err, vel, vel_errors = line_out
             lambda_hv_results[element] = lambda_hv
             lambda_hv_err_results[element] = lambda_hv_err
         else:
-            vel, vel_errors = compute_speed(rest_wavelength,
-                                            x[max_point:max_point_2, 0],
-                                            mean[max_point:max_point_2, 0],
-                                            np.sqrt(conf[max_point:max_point_2, 0]),
+            vel, vel_errors = compute_speed(rest_wavelength, x[max_point:max_point_2, 0],
+                                            mean[max_point:max_point_2, 0], np.sqrt(conf[max_point:max_point_2, 0]),
                                             plot)
         velocity_results[element] = vel
         veolcity_err_results[element] = vel_errors
