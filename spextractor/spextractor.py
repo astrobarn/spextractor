@@ -109,6 +109,15 @@ def load_spectra(filename, z):
         raise e
 
 
+def _get_speed(lambda_m, lambda_m_err, lambda_rest):
+    # This is the absolute minimum, save it.
+    c = 299.792458
+    l_quot = lambda_m / lambda_rest
+    velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
+    velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_rest
+    return velocity, velocity_err
+
+
 def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
     # Just pick the strongest
     min_pos = y_values.argmin()
@@ -135,10 +144,8 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
 
     lambda_m_err = (x_right - x_left) / 2
 
-    c = 299.792458
-    l_quot = lambda_m / lambda_0
-    velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
-    velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+    velocity, velocity_err = _get_speed(lambda_m, lambda_m_err, lambda_0)
+
     if plot:
         plt.axvline(lambda_m, color='b')
 
@@ -163,6 +170,8 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
     velocity_err = np.nan
     lambdas = []
     lambdas_err = []
+    vel_hv = []
+    vel_hv_err = []
     for min_pos in minima:
         lambda_m = x_values[min_pos]
         try:
@@ -185,18 +194,18 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
         lambdas.append(lambda_m)
         lambdas_err.append(lambda_m_err)
 
+        this_v, this_v_err = _get_speed(lambda_m, lambda_m_err, lambda_0)
+        vel_hv.append(this_v)
+        vel_hv_err.append(this_v_err)
+
         if min_pos == abs_min:
-            # This is the absolute minimum, save it.
-            c = 299.792458
-            l_quot = lambda_m / lambda_0
-            velocity = -c * (l_quot ** 2 - 1) / (l_quot ** 2 + 1)
-            velocity_err = c * 4 * l_quot / (l_quot ** 2 + 1) ** 2 * lambda_m_err / lambda_0
+            velocity, velocity_err = this_v, this_v_err
 
         if plot:
             plt.vlines(lambda_m, y_values[min_pos] - 0.2,
                        y_values[min_pos] + 0.2, color='b')
 
-    return lambdas, lambdas_err, velocity, velocity_err
+    return lambdas, lambdas_err, velocity, velocity_err, vel_hv, vel_hv_err
 
 
 def _filter_outliers(wavel, flux, sigma_outliers):
@@ -284,6 +293,9 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     lambda_hv_results = dict()
     lambda_hv_err_results = dict()
 
+    vel_hv_results = dict()
+    vel_hv_err_results = dict()
+
     t0_pew = time.time()
     for line_data in lines:
         element, rest_wavelength, low_1, high_1, low_2, high_2 = line_data
@@ -307,9 +319,11 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
                                                    mean[max_point:max_point_2, 0],
                                                    np.sqrt(conf[max_point:max_point_2, 0]), plot)
 
-            lambda_hv, lambda_hv_err, vel, vel_errors = line_out
+            lambda_hv, lambda_hv_err, vel, vel_errors, vel_hv, vel_hv_err = line_out
             lambda_hv_results[element] = lambda_hv
             lambda_hv_err_results[element] = lambda_hv_err
+            vel_hv_results[element] = vel_hv
+            vel_hv_err_results[element] = vel_hv_err
         else:
             vel, vel_errors = compute_speed(rest_wavelength, x[max_point:max_point_2, 0],
                                             mean[max_point:max_point_2, 0], np.sqrt(conf[max_point:max_point_2, 0]),
