@@ -50,8 +50,9 @@ plt.savefig('Ia_hv_example.png', dpi=300)
 # Test case with a type Ib
 filename_Ib = 'tns_2018_aqf/tns_2018aqf_2018-04-10.0_P200_DBSP_ZTF.txt'
 z = 0.033
+# In this case, we set auto_prune to False to analyse the whole spectrum.
 pew, pew_err, vel, vel_err, gp_model = spextractor.process_spectra(filename_Ib, z, downsampling=3, plot=True, type='Ib',
-                                                                   sigma_outliers=3)
+                                                                   sigma_outliers=3, auto_prune=False)
 # velocities are given in 10**3 km/s and pEW in Å
 print('pew (Å)')
 report(pew, pew_err)
