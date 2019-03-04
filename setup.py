@@ -2,7 +2,7 @@
 import setuptools
 from setuptools import setup
 
-setup(name='spextractor', version='0.1',
+setup(name='spextractor', version='0.2',
       description='Automatic extractor of spectral features through Gaussian Processes',
       url='https://github.com/sepap/spextractor',
       author='Seméli Papadogiannakis',

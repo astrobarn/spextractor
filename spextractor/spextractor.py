@@ -147,7 +147,7 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
     velocity, velocity_err = _get_speed(lambda_m, lambda_m_err, lambda_0)
 
     if plot:
-        plt.axvline(lambda_m, color='b')
+        plt.axvline(lambda_m, color='k', linestyle='--')
 
     return velocity, velocity_err
 
@@ -203,7 +203,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
 
         if plot:
             plt.vlines(lambda_m, y_values[min_pos] - 0.2,
-                       y_values[min_pos] + 0.2, color='b')
+                       y_values[min_pos] + 0.2, color='k', linestyle='--')
 
     return lambdas, lambdas_err, velocity, velocity_err, vel_hv, vel_hv_err
 
