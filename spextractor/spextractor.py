@@ -315,10 +315,23 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         # For n:th feature:
         cp_1 = np.searchsorted(x[:, 0], (low_1, high_1))
         index_low, index_hi = cp_1
-        max_point = index_low + np.argmax(mean[index_low: index_hi])
-
         cp_2 = np.searchsorted(x[:, 0], (low_2, high_2))
         index_low_2, index_hi_2 = cp_2
+
+        if index_low == index_hi or index_low_2 == index_hi_2:
+            # Feature outside of range of the spectrum
+            if high_velocity:
+                lambda_hv_results[element] = []
+                lambda_hv_err_results[element] = []
+                vel_hv_results[element] = []
+                vel_hv_err_results[element] = []
+            velocity_results[element] = np.nan
+            veolcity_err_results[element] = np.nan
+            pew_results[element] = np.nan
+            pew_err_results[element] = np.nan
+            continue
+
+        max_point = index_low + np.argmax(mean[index_low: index_hi])
         max_point_2 = index_low_2 + np.argmax(mean[index_low_2: index_hi_2])
 
         # Get the coordinates of the points:
