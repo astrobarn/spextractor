@@ -156,7 +156,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
     min_pos = y_values.argmin()
     if min_pos == 0 or min_pos == y_values.shape[0]:
         # Feature not found
-        return [], [], np.nan, np.nan
+        return [], [], np.nan, np.nan, [], []
 
     # Find all relative minima
     minima = signal.argrelmin(y_values, order=10)[0].tolist()
