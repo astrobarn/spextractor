@@ -236,9 +236,16 @@ def _filter_outliers(wavel, flux, sigma_outliers):
 
 
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
-                    sigma_outliers=None, high_velocity=False, auto_prune=True):
+                    sigma_outliers=None, high_velocity=False, auto_prune=True,
+                    remove_gaps=True):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
+
+    if remove_gaps:
+        # Mask out regions where flux is 0
+        keep = flux != 0
+        wavel = wavel[keep]
+        flux = flux[keep]
 
     if isinstance(type, str):
         lines = LINES[type]
@@ -253,8 +260,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
         wavel = wavel[i0:i1]
         flux = flux[i0:i1]
-        flux /= flux.max()
-
+        flux /= flux.max()  # If this raises an error, the spectrum is empty
 
     if sigma_outliers is not None:
         # Remove spikes
@@ -295,7 +301,6 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         plt.fill_between(x[:, 0], mean[:, 0] - conf[:, 0],
                          mean[:, 0] + conf[:, 0],
                          alpha=0.3, color='red')
-
 
     pew_results = dict()
     pew_err_results = dict()
