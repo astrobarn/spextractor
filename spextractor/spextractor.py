@@ -118,7 +118,7 @@ def _get_speed(lambda_m, lambda_m_err, lambda_rest):
     return velocity, velocity_err
 
 
-def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
+def compute_speed(lambda_0, x_values, y_values, m, plot):
     # Just pick the strongest
     min_pos = y_values.argmin()
     if min_pos == 0 or min_pos == y_values.shape[0]:
@@ -127,22 +127,10 @@ def compute_speed(lambda_0, x_values, y_values, y_err_values, plot):
 
     lambda_m = x_values[min_pos]
 
-    try:
-        # To estimate the error look on the right and see when it overcomes y_err
-        threshold = y_values[min_pos] + y_err_values[min_pos]
-        x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
-    except IndexError:
-        # Threshold not found, error unreliable:
-        x_right = np.nan
-
-    try:
-        # and on the left:
-        x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
-    except IndexError:
-        # Threshold not found, error unreliable:
-        x_left = np.nan
-
-    lambda_m_err = (x_right - x_left) / 2
+    # To estimate the error, we sample possible spectra from the posterior and find the minima.
+    samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze().argmin(axis=0)
+    lambda_m_samples = x_values[samples]
+    lambda_m_err = lambda_m_samples.std()
 
     velocity, velocity_err = _get_speed(lambda_m, lambda_m_err, lambda_0)
 
@@ -346,8 +334,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         # Speed calculation -------------------
         if high_velocity:
             line_out = compute_speed_high_velocity(rest_wavelength, x[max_point:max_point_2, 0],
-                                                   mean[max_point:max_point_2, 0],
-                                                   np.sqrt(conf[max_point:max_point_2, 0]), plot)
+                                                   mean[max_point:max_point_2, 0], m, plot)
 
             lambda_hv, lambda_hv_err, vel, vel_errors, vel_hv, vel_hv_err = line_out
             lambda_hv_results[element] = lambda_hv
@@ -356,7 +343,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
             vel_hv_err_results[element] = vel_hv_err
         else:
             vel, vel_errors = compute_speed(rest_wavelength, x[max_point:max_point_2, 0],
-                                            mean[max_point:max_point_2, 0], np.sqrt(conf[max_point:max_point_2, 0]),
+                                            y[max_point:max_point_2, 0], m,
                                             plot)
         velocity_results[element] = vel
         veolcity_err_results[element] = vel_errors
