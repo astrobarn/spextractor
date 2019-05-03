@@ -15,6 +15,8 @@ from astropy.io import ascii
 from scipy import interpolate
 from scipy import signal
 
+from sklearn.cluster import DBSCAN, MeanShift
+
 import GPy
 
 plt.ioff()
@@ -140,7 +142,7 @@ def compute_speed(lambda_0, x_values, y_values, m, plot):
     return velocity, velocity_err
 
 
-def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot):
+def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='MeanShift'):
     min_pos = y_values.argmin()
     if min_pos == 0 or min_pos == y_values.shape[0]:
         # Feature not found
@@ -154,30 +156,35 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
     # Remove redundancies and sort.
     minima = sorted(set(minima))
 
-    velocity = np.nan
-    velocity_err = np.nan
+    # To estimate the error, we sample possible spectra from the posterior and find the minima.
+    samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze()
+
+    minima_samples = []
+    for i in range(samples.shape[1]):
+        positions = signal.argrelmin(samples[:, i], order=10)[0]
+        minima_samples.extend(positions)
+
+    minima_samples = np.array(minima_samples)[:, np.newaxis]
+    if method.lower() == 'dbscan':
+        labels = DBSCAN(eps=1).fit_predict(minima_samples)
+    elif method.lower() == 'meanshift':
+        labels = MeanShift(10).fit_predict(minima_samples)
+    else:
+        raise ValueError('Invalid method {}, valid are MeanShift and DBSCAN'.format(method))
+
+    velocity, velocity_err = compute_speed(lambda_0, x_values, y_values, m, plot=False)
     lambdas = []
     lambdas_err = []
     vel_hv = []
     vel_hv_err = []
-    for min_pos in minima:
-        lambda_m = x_values[min_pos]
-        try:
-            # To estimate the error look on the right and see when it overcomes y_err
-            threshold = y_values[min_pos] + y_err_values[min_pos]
-            x_right = x_values[min_pos:][y_values[min_pos:] >= threshold][0]
-        except IndexError:
-            # Threshold not found, error unreliable:
-            x_right = np.nan
 
-        try:
-            # and on the left:
-            x_left = x_values[:min_pos][y_values[:min_pos] >= threshold][-1]
-        except IndexError:
-            # Threshold not found, error unreliable:
-            x_left = np.nan
+    for x in np.unique(labels):
+        matching = labels == x
+        if matching.sum() < 5: continue  # This is just noise
 
-        lambda_m_err = (x_right - x_left) / 2
+        min_pos = minima_samples[matching]
+        lambda_m = np.mean(x_values[min_pos])
+        lambda_m_err = np.std(x_values[min_pos])
 
         lambdas.append(lambda_m)
         lambdas_err.append(lambda_m_err)
@@ -186,13 +193,9 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, y_err_values, plot
         vel_hv.append(this_v)
         vel_hv_err.append(this_v_err)
 
-        if min_pos == abs_min:
-            velocity, velocity_err = this_v, this_v_err
-
         if plot:
             plt.vlines(lambda_m, y_values[min_pos] - 0.2,
                        y_values[min_pos] + 0.2, color='k', linestyle='--')
-
     return lambdas, lambdas_err, velocity, velocity_err, vel_hv, vel_hv_err
 
 
@@ -225,7 +228,7 @@ def _filter_outliers(wavel, flux, sigma_outliers):
 
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
                     sigma_outliers=None, high_velocity=False, auto_prune=True,
-                    remove_gaps=True):
+                    remove_gaps=True, hv_clustering_method='MeanShift'):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
 
@@ -334,7 +337,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         # Speed calculation -------------------
         if high_velocity:
             line_out = compute_speed_high_velocity(rest_wavelength, x[max_point:max_point_2, 0],
-                                                   mean[max_point:max_point_2, 0], m, plot)
+                                                   mean[max_point:max_point_2, 0], m, plot, hv_clustering_method)
 
             lambda_hv, lambda_hv_err, vel, vel_errors, vel_hv, vel_hv_err = line_out
             lambda_hv_results[element] = lambda_hv
