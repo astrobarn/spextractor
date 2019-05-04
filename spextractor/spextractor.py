@@ -148,14 +148,6 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
         # Feature not found
         return [], [], np.nan, np.nan, [], []
 
-    # Find all relative minima
-    minima = signal.argrelmin(y_values, order=10)[0].tolist()
-    # Append the global minimum (it could be near the edges)
-    abs_min = y_values.argmin()
-    minima.append(abs_min)
-    # Remove redundancies and sort.
-    minima = sorted(set(minima))
-
     # To estimate the error, we sample possible spectra from the posterior and find the minima.
     samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze()
 
