@@ -179,6 +179,10 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
     vel_hv_err = []
 
     for x in np.unique(labels):
+        if x == -1:
+            # This is the "noise" label in DBSCAN
+            continue
+
         matching = labels == x
         if matching.sum() < 5: continue  # This is just noise
 
