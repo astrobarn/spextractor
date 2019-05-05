@@ -131,6 +131,12 @@ def compute_speed(lambda_0, x_values, y_values, m, plot):
 
     # To estimate the error, we sample possible spectra from the posterior and find the minima.
     samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze().argmin(axis=0)
+
+    # Exclude points at either end
+    samples = samples[np.logical_and(samples != 0, samples != x_values.shape[0])]
+    if samples.size == 0:
+        return np.nan, np.nan
+
     lambda_m_samples = x_values[samples]
     lambda_m_err = lambda_m_samples.std()
 
@@ -176,7 +182,8 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
             continue
 
         matching = labels == x
-        if matching.sum() < 5: continue  # This is just noise
+        if matching.sum() < 5:
+            continue  # This is just noise
 
         min_pos = minima_samples[matching]
         lambda_m = np.mean(x_values[min_pos])
