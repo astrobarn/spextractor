@@ -349,7 +349,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
             vel_hv_err_results[element] = vel_hv_err
         else:
             vel, vel_errors = compute_speed(rest_wavelength, x[max_point:max_point_2, 0],
-                                            y[max_point:max_point_2, 0], m,
+                                            mean[max_point:max_point_2, 0], m,
                                             plot)
         velocity_results[element] = vel
         veolcity_err_results[element] = vel_errors
