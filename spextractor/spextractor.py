@@ -183,7 +183,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
             continue
 
         matching = labels == x
-        if matching.sum() < 5:
+        if matching.sum() < 10:
             continue  # This is just noise
 
         min_pos = minima_samples[matching]
