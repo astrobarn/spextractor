@@ -160,7 +160,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
 
     minima_samples = []
     for i in range(samples.shape[1]):
-        positions = signal.argrelmin(samples[:, i], order=10)[0]
+        positions = signal.argrelmin(samples[:, i], order=20)[0]
         minima_samples.extend(positions)
 
     minima_samples = np.array(minima_samples)[:, np.newaxis]
@@ -183,7 +183,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
             continue
 
         matching = labels == x
-        if matching.sum() < 100:
+        if matching.sum() < 10:
             continue  # This is just noise
 
         min_pos = minima_samples[matching]
