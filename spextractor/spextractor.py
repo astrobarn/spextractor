@@ -251,9 +251,23 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     return wavel, flux
 
 
+def filter_iq(x, y):
+    '''
+    Apply interquartile filtering of extreme outliers.
+
+    Keep everything within twice the IQR of the median.
+    '''
+    low, med, up = np.percentile(y, [25, 50, 75])
+    iq_range = up - low
+    lower = med - iq_range * 2
+    upper = med + iq_range * 2
+
+    valid = np.logical_and(y > lower, y < upper)
+    return x[valid], y[valid]
+
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
                     sigma_outliers=None, high_velocity=False, auto_prune=True,
-                    remove_gaps=True, hv_clustering_method='MeanShift'):
+                    remove_gaps=True, hv_clustering_method='MeanShift', iq_filtering=True):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
 
@@ -262,6 +276,10 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         keep = flux != 0
         wavel = wavel[keep]
         flux = flux[keep]
+
+    if iq_filtering:
+        # Interquartile filtering:
+        wavel, flux = filter_iq(wavel, flux)
 
     if isinstance(type, str):
         lines = LINES[type]
