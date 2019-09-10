@@ -259,8 +259,8 @@ def filter_iq(x, y):
     '''
     low, med, up = np.percentile(y, [25, 50, 75])
     iq_range = up - low
-    lower = med - iq_range * 2
-    upper = med + iq_range * 2
+    lower = med - iq_range * 3
+    upper = med + iq_range * 3
 
     valid = np.logical_and(y > lower, y < upper)
 
