@@ -269,7 +269,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
         wavel = wavel[i0:i1]
         flux = flux[i0:i1]
-        flux /= flux.max()  # If this raises an error, the spectrum is empty
+        flux /= flux.max()  # If this raises an error, the spectrum is empty or outside of range
 
     if sigma_outliers is not None:
         # Remove spikes
