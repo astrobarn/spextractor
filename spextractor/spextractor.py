@@ -313,7 +313,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     y = flux[:, np.newaxis]
 
     if plot:
-        plt.figure()
+        plt.figure(filename)
         plt.title(_sanitize(filename))
         plt.xlabel(r"$\mathrm{Rest\ wavelength}\ (\AA)$", size=14)
         plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
