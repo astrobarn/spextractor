@@ -263,6 +263,9 @@ def filter_iq(x, y):
     upper = med + iq_range * 2
 
     valid = np.logical_and(y > lower, y < upper)
+
+    # A point is only valid if both neighbours are valid as well
+    valid = np.convolve(valid, [1, 1, 1], mode='same') >= 3
     return x[valid], y[valid]
 
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
