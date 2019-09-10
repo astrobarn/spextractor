@@ -88,8 +88,12 @@ def load_spectra(filename, z):
     try:
         data = ascii.read(filename)
         flux = data[:, 1]
-        wavel = data[:, 0]
-        flux /= flux.max()
+        wavel = data[:, 0] / (1 + z)
+        flux /= np.nanmax(flux)
+        if np.any(np.isnan(flux)) or np.any(np.isnan(wavel)):
+            valid = np.isfinite(wavel) & np.isfinite(flux)
+            wavel = wavel[valid]
+            flux = flux[valid]
         return wavel, flux
     except Exception as e:
         prev = e
@@ -110,8 +114,13 @@ def load_spectra(filename, z):
         flux /= flux.max()  # normalise intensity
         '''
         flux = data[:, 1]
-        flux /= flux.max()
+        flux /= np.nanmax(flux)
+        if np.any(np.isnan(flux)) or np.any(np.isnan(wavel)):
+            valid = np.isfinite(wavel) & np.isfinite(flux)
+            wavel = wavel[valid]
+            flux = flux[valid]
         return wavel, flux
+
     except Exception as e:
         print(prev.message, e.message, filename)
         raise e
