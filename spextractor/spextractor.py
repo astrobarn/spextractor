@@ -173,17 +173,24 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
     samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze()
 
     minima_samples = []
-    for i in range(samples.shape[1]):
-        positions = signal.argrelmin(samples[:, i], order=20)[0]
-        minima_samples.extend(positions)
+    # Try increasingly more strict ranges in relative minima.
+    for order in range(20, 2, -1):    
+        for i in range(samples.shape[1]):
+            positions = signal.argrelmin(samples[:, i], order=order)[0]
+            minima_samples.extend(positions)
 
-    minima_samples = np.array(minima_samples)[:, np.newaxis]
-    if method.lower() == 'dbscan':
-        labels = DBSCAN(eps=1).fit_predict(minima_samples)
-    elif method.lower() == 'meanshift':
-        labels = MeanShift(10).fit_predict(minima_samples)
+        if minima_samples:
+            minima_samples = np.array(minima_samples)[:, np.newaxis]
+            if method.lower() == 'dbscan':
+                labels = DBSCAN(eps=1).fit_predict(minima_samples)
+            elif method.lower() == 'meanshift':
+                labels = MeanShift(10).fit_predict(minima_samples)
+            else:
+                raise ValueError('Invalid method {}, valid are MeanShift and DBSCAN'.format(method))
+            break
     else:
-        raise ValueError('Invalid method {}, valid are MeanShift and DBSCAN'.format(method))
+        # There seems to be no minima at all!
+        labels = []
 
     velocity, velocity_err = compute_speed(lambda_0, x_values, y_values, m, plot=False)
     lambdas = []
