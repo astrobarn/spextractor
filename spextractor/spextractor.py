@@ -41,6 +41,11 @@ LINES_Ic = [('Fe II', 5169, 4950, 5050, 5150, 5250),
 LINES = dict(Ia=LINES_Ia, Ib=LINES_Ib, Ic=LINES_Ic)
 
 
+def _sanitize(string):
+    '''Replace LaTeX tokens'''
+    return string.replace('_', '-')
+
+
 def pEW(wavelength, flux, cont_coords):
     '''
     Calculates the pEW between two chosen points.(cont_coords to be
@@ -272,7 +277,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
     if plot:
         plt.figure()
-        plt.title(filename)
+        plt.title(_sanitize(filename))
         plt.xlabel(r"$\mathrm{Rest\ wavelength}\ (\AA)$", size=14)
         plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
         plt.plot(wavel, flux, color='k', alpha=0.5)
