@@ -232,7 +232,7 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     further than sigma_outliers standard deviations
     """
 
-    downsampling = 20
+    downsampling = 5
     x = wavel[::downsampling, np.newaxis]
     y = flux[::downsampling, np.newaxis]
     kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
@@ -251,7 +251,7 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     return wavel, flux
 
 
-def filter_iq(x, y):
+def _filter_iq(x, y):
     '''
     Apply interquartile filtering of extreme outliers.
 
@@ -266,6 +266,19 @@ def filter_iq(x, y):
 
     # A point is only valid if both neighbours are valid as well
     valid = np.convolve(valid, [1, 1, 1], mode='same') >= 3
+
+    # Starting from each side, once we have a valid region spanning 300 Å, accept everything in between.
+    resolution_start = np.median(np.diff(x[:100]))
+    resolution_end = np.median(np.diff(x[-100:]))
+
+    n_start = int(round(300 * resolution_start))
+    n_end = int(round(300 * resolution_end))
+    N = valid.shape[0]
+
+    i0 = np.argmax(np.convolve(valid, int(round(300 * resolution_start)), mode='same'))
+    i1 = N - np.argmax(np.convolve(valid[::-1], int(round(300 * resolution_end)), mode='same'))
+    valid[i0:i1] = True
+
     return x[valid], y[valid]
 
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
@@ -282,7 +295,7 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
     if iq_filtering:
         # Interquartile filtering:
-        wavel, flux = filter_iq(wavel, flux)
+        wavel, flux = _filter_iq(wavel, flux)
 
     if isinstance(type, str):
         lines = LINES[type]
