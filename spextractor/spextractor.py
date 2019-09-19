@@ -281,8 +281,8 @@ def _filter_iq(x, y):
     n_end = int(round(300 * resolution_end))
     N = valid.shape[0]
 
-    i0 = np.argmax(np.convolve(valid, int(round(300 * resolution_start)), mode='same'))
-    i1 = N - np.argmax(np.convolve(valid[::-1], int(round(300 * resolution_end)), mode='same'))
+    i0 = np.argmax(np.convolve(valid, n_start, mode='same'))
+    i1 = N - np.argmax(np.convolve(valid[::-1], n_end, mode='same'))
     valid[i0:i1] = True
 
     return x[valid], y[valid]
@@ -291,6 +291,7 @@ def _filter_iq(x, y):
 def _de_smooth(wavel, flux):
     indexes = np.concatenate(signal.argrelmin(flux) + signal.argrelmax(flux))
     indexes.sort()
+    print('De-smoothing removed {} data points'.format(wavel.shape[0] - indexes.shape[0]))
     wavel = wavel[indexes]
     flux = flux[indexes]
     return wavel, flux
@@ -313,9 +314,6 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         # Interquartile filtering:
         wavel, flux = _filter_iq(wavel, flux)
 
-    if desmooth:
-        wavel, flux = _de_smooth(wavel, flux)
-
     if isinstance(type, str):
         lines = LINES[type]
     else:
@@ -330,6 +328,9 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         wavel = wavel[i0:i1]
         flux = flux[i0:i1]
         flux /= flux.max()  # If this raises an error, the spectrum is empty or outside of range
+
+    if desmooth:
+        wavel, flux = _de_smooth(wavel, flux)
 
     if sigma_outliers is not None:
         # Remove spikes
