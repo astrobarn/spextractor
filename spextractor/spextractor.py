@@ -233,15 +233,21 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     """
 
     downsampling = 5
-    x = wavel[::downsampling, np.newaxis]
-    y = flux[::downsampling, np.newaxis]
-    kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
-    m = GPy.models.GPRegression(x, y, kernel)
-    m.optimize()
+    valid_vector = []
+    for i in range(downsampling):
+        x = wavel[i::downsampling, np.newaxis]
+        y = flux[i::downsampling, np.newaxis]
+        kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
+        m = GPy.models.GPRegression(x, y, kernel)
+        m.optimize()
 
-    pred, var_ = m.predict(wavel[:, np.newaxis])
-    sigma = np.sqrt(var_.squeeze())
-    valid = np.abs(flux - pred.squeeze()) < sigma_outliers * sigma
+        pred, var_ = m.predict(wavel[:, np.newaxis])
+        sigma = np.sqrt(var_.squeeze())
+        valid = np.abs(flux - pred.squeeze()) < sigma_outliers * sigma
+        valid_vector.append(valid.astype(np.int32))
+
+    valid_count = np.array(valid_vector).sum(axis=0)
+    valid = valid_count == downsampling
 
     wavel = wavel[valid]
     flux = flux[valid]
