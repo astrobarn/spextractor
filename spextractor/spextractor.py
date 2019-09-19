@@ -174,7 +174,7 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
 
     minima_samples = []
     # Try increasingly more strict ranges in relative minima.
-    for order in range(20, 2, -1):    
+    for order in range(20, 2, -1):
         for i in range(samples.shape[1]):
             positions = signal.argrelmin(samples[:, i], order=order)[0]
             minima_samples.extend(positions)
@@ -287,9 +287,19 @@ def _filter_iq(x, y):
 
     return x[valid], y[valid]
 
+
+def _de_smooth(wavel, flux):
+    indexes = np.concatenate(signal.argrelmin(flux) + signal.argrelmax(flux))
+    indexes.sort()
+    wavel = wavel[indexes]
+    flux = flux[indexes]
+    return wavel, flux
+
+
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
                     sigma_outliers=None, high_velocity=False, auto_prune=True,
-                    remove_gaps=True, hv_clustering_method='MeanShift', iq_filtering=True):
+                    remove_gaps=True, hv_clustering_method='MeanShift', iq_filtering=True,
+                    desmooth=True):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
 
@@ -302,6 +312,9 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     if iq_filtering:
         # Interquartile filtering:
         wavel, flux = _filter_iq(wavel, flux)
+
+    if desmooth:
+        wavel, flux = _de_smooth(wavel, flux)
 
     if isinstance(type, str):
         lines = LINES[type]
