@@ -41,6 +41,11 @@ LINES_Ic = [('Fe II', 5169, 4950, 5050, 5150, 5250),
 LINES = dict(Ia=LINES_Ia, Ib=LINES_Ib, Ic=LINES_Ic)
 
 
+def _sanitize(string):
+    '''Replace LaTeX tokens'''
+    return string.replace('_', '-')
+
+
 def pEW(wavelength, flux, cont_coords):
     '''
     Calculates the pEW between two chosen points.(cont_coords to be
@@ -83,8 +88,12 @@ def load_spectra(filename, z):
     try:
         data = ascii.read(filename)
         flux = data[:, 1]
-        wavel = data[:, 0]
-        flux /= flux.max()
+        wavel = data[:, 0] / (1 + z)
+        flux /= np.nanmax(flux)
+        if np.any(np.isnan(flux)) or np.any(np.isnan(wavel)):
+            valid = np.isfinite(wavel) & np.isfinite(flux)
+            wavel = wavel[valid]
+            flux = flux[valid]
         return wavel, flux
     except Exception as e:
         prev = e
@@ -105,8 +114,13 @@ def load_spectra(filename, z):
         flux /= flux.max()  # normalise intensity
         '''
         flux = data[:, 1]
-        flux /= flux.max()
+        flux /= np.nanmax(flux)
+        if np.any(np.isnan(flux)) or np.any(np.isnan(wavel)):
+            valid = np.isfinite(wavel) & np.isfinite(flux)
+            wavel = wavel[valid]
+            flux = flux[valid]
         return wavel, flux
+
     except Exception as e:
         print(prev.message, e.message, filename)
         raise e
@@ -159,17 +173,24 @@ def compute_speed_high_velocity(lambda_0, x_values, y_values, m, plot, method='M
     samples = m.posterior_samples_f(x_values[:, np.newaxis], 100).squeeze()
 
     minima_samples = []
-    for i in range(samples.shape[1]):
-        positions = signal.argrelmin(samples[:, i], order=20)[0]
-        minima_samples.extend(positions)
+    # Try increasingly more strict ranges in relative minima.
+    for order in range(20, 2, -1):
+        for i in range(samples.shape[1]):
+            positions = signal.argrelmin(samples[:, i], order=order)[0]
+            minima_samples.extend(positions)
 
-    minima_samples = np.array(minima_samples)[:, np.newaxis]
-    if method.lower() == 'dbscan':
-        labels = DBSCAN(eps=1).fit_predict(minima_samples)
-    elif method.lower() == 'meanshift':
-        labels = MeanShift(10).fit_predict(minima_samples)
+        if minima_samples:
+            minima_samples = np.array(minima_samples)[:, np.newaxis]
+            if method.lower() == 'dbscan':
+                labels = DBSCAN(eps=1).fit_predict(minima_samples)
+            elif method.lower() == 'meanshift':
+                labels = MeanShift(10).fit_predict(minima_samples)
+            else:
+                raise ValueError('Invalid method {}, valid are MeanShift and DBSCAN'.format(method))
+            break
     else:
-        raise ValueError('Invalid method {}, valid are MeanShift and DBSCAN'.format(method))
+        # There seems to be no minima at all!
+        labels = []
 
     velocity, velocity_err = compute_speed(lambda_0, x_values, y_values, m, plot=False)
     lambdas = []
@@ -211,16 +232,22 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     further than sigma_outliers standard deviations
     """
 
-    downsampling = 20
-    x = wavel[::downsampling, np.newaxis]
-    y = flux[::downsampling, np.newaxis]
-    kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
-    m = GPy.models.GPRegression(x, y, kernel)
-    m.optimize()
+    downsampling = 5
+    valid_vector = []
+    for i in range(downsampling):
+        x = wavel[i::downsampling, np.newaxis]
+        y = flux[i::downsampling, np.newaxis]
+        kernel = GPy.kern.Matern32(input_dim=1, lengthscale=300, variance=0.001)
+        m = GPy.models.GPRegression(x, y, kernel)
+        m.optimize()
 
-    pred, var_ = m.predict(wavel[:, np.newaxis])
-    sigma = np.sqrt(var_.squeeze())
-    valid = np.abs(flux - pred.squeeze()) < sigma_outliers * sigma
+        pred, var_ = m.predict(wavel[:, np.newaxis])
+        sigma = np.sqrt(var_.squeeze())
+        valid = np.abs(flux - pred.squeeze()) < sigma_outliers * sigma
+        valid_vector.append(valid.astype(np.int32))
+
+    valid_count = np.array(valid_vector).sum(axis=0)
+    valid = valid_count == downsampling
 
     wavel = wavel[valid]
     flux = flux[valid]
@@ -230,9 +257,50 @@ def _filter_outliers(wavel, flux, sigma_outliers):
     return wavel, flux
 
 
+def _filter_iq(x, y):
+    '''
+    Apply interquartile filtering of extreme outliers.
+
+    Keep everything within twice the IQR of the median.
+    '''
+    low, med, up = np.percentile(y, [25, 50, 75])
+    iq_range = up - low
+    lower = med - iq_range * 3
+    upper = med + iq_range * 3
+
+    valid = np.logical_and(y > lower, y < upper)
+
+    # A point is only valid if both neighbours are valid as well
+    valid = np.convolve(valid, [1, 1, 1], mode='same') >= 3
+
+    # Starting from each side, once we have a valid region spanning 300 Å, accept everything in between.
+    resolution_start = np.median(np.diff(x[:100]))
+    resolution_end = np.median(np.diff(x[-100:]))
+
+    n_start = int(round(300 * resolution_start))
+    n_end = int(round(300 * resolution_end))
+    N = valid.shape[0]
+
+    i0 = np.argmax(np.convolve(valid, n_start, mode='same'))
+    i1 = N - np.argmax(np.convolve(valid[::-1], n_end, mode='same'))
+    valid[i0:i1] = True
+
+    return x[valid], y[valid]
+
+
+def _de_smooth(wavel, flux):
+    indexes = np.concatenate(signal.argrelmin(flux) + signal.argrelmax(flux))
+    indexes.sort()
+    print('De-smoothing removed {} data points'.format(wavel.shape[0] - indexes.shape[0]))
+    wavel = wavel[indexes]
+    flux = flux[indexes]
+    return wavel, flux
+
+
 def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
                     sigma_outliers=None, high_velocity=False, auto_prune=True,
-                    remove_gaps=True, hv_clustering_method='MeanShift'):
+                    remove_gaps=True, hv_clustering_method='MeanShift', iq_filtering=True,
+                    desmooth=True):
     t00 = time.time()
     wavel, flux = load_spectra(filename, z)
 
@@ -241,6 +309,10 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
         keep = flux != 0
         wavel = wavel[keep]
         flux = flux[keep]
+
+    if iq_filtering:
+        # Interquartile filtering:
+        wavel, flux = _filter_iq(wavel, flux)
 
     if isinstance(type, str):
         lines = LINES[type]
@@ -255,7 +327,10 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
 
         wavel = wavel[i0:i1]
         flux = flux[i0:i1]
-        flux /= flux.max()  # If this raises an error, the spectrum is empty
+        flux /= flux.max()  # If this raises an error, the spectrum is empty or outside of range
+
+    if desmooth:
+        wavel, flux = _de_smooth(wavel, flux)
 
     if sigma_outliers is not None:
         # Remove spikes
@@ -271,8 +346,8 @@ def process_spectra(filename, z, downsampling=None, plot=False, type='Ia',
     y = flux[:, np.newaxis]
 
     if plot:
-        plt.figure()
-        plt.title(filename)
+        plt.figure(filename)
+        plt.title(_sanitize(filename))
         plt.xlabel(r"$\mathrm{Rest\ wavelength}\ (\AA)$", size=14)
         plt.ylabel(r"$\mathrm{Normalised\ flux}$", size=14)
         plt.plot(wavel, flux, color='k', alpha=0.5)
